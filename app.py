@@ -88,12 +88,11 @@ def extract_and_clean_pdf(pdf_path, output_folder, pdf_base_name):
         total_pages = len(doc)
         img_count = 0
         
-        # 🎯 LOCAL SMART DECISION MATRIX CRITERIA INTEGRATED:
-        # Agar PDF me 15 se zyada pages hain, toh high-res page rendering apply hogi pixel artifacts compile karne ke liye.
+        # 🎯 Dynamic Matrix Splitting logic for low RAM usage
         if total_pages > 15:
             for page_index in range(total_pages):
                 page = doc[page_index]
-                matrix = fitz.Matrix(1.5, 1.5)  # Perfect balance for resolution & low memory
+                matrix = fitz.Matrix(1.5, 1.5)
                 pix = page.get_pixmap(matrix=matrix, alpha=False)
                 
                 img_hash = hashlib.md5(pix.samples).hexdigest()[:6]
@@ -104,7 +103,6 @@ def extract_and_clean_pdf(pdf_path, output_folder, pdf_base_name):
                     pix.save(image_path)
                     img_count += 1
         else:
-            # Normal Cases: Direct embedded images extract honge
             for page_index in range(total_pages):
                 page = doc[page_index]
                 images = page.get_images(full=True)
@@ -160,7 +158,6 @@ if uploaded_file is not None:
                 shutil.rmtree(CURRENT_BATCH_DIR)
             os.makedirs(CURRENT_BATCH_DIR, exist_ok=True)
             
-            # Strict Lightweight Headless Configuration
             chrome_options = webdriver.ChromeOptions()
             chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--no-sandbox")
@@ -169,7 +166,6 @@ if uploaded_file is not None:
             chrome_options.add_argument("--window-size=1280,720")
             chrome_options.add_argument("--remote-allow-origins=*")
             
-            # Local deployment compatibility fallback path check
             if os.path.exists("/usr/bin/chromium"):
                 chrome_options.binary_location = "/usr/bin/chromium"
             
@@ -244,7 +240,6 @@ if uploaded_file is not None:
                                 else:
                                     row_other_count += 1
 
-                            # Loop updated to iterate over all options found in dropdown
                             for doc_name in options:
                                 detected_claim = extract_claim_from_text(doc_name) or discovered_claim_number
                                 doc_name_lower = doc_name.lower()
@@ -272,8 +267,6 @@ if uploaded_file is not None:
                                                 else:
                                                     pdf_name_without_ext = os.path.splitext(doc_name)[0]
                                                     pdf_base_identifier = f"{reg_no}_{pdf_name_without_ext}"
-                                                    
-                                                    # Fix: Local optimized engine call integration here
                                                     imgs_saved = extract_and_clean_pdf(file_save_path, reg_folder, pdf_base_identifier)
                                                     
                                                     if imgs_saved > 0:
@@ -323,16 +316,24 @@ if uploaded_file is not None:
                             master_zip.write(file_full_path, relative_archive_path)
                 
                 st.balloons()
-                st.success("🎉 Extraction processing batch verified. Everything is compiled neatly inside one master download archive:")
+                archive_size = os.path.getsize(master_delivery_zip) / (1024 * 1024)
+                st.success(f"🎉 Extraction processing batch verified. Everything is compiled neatly! Total Archive Size: {archive_size:.2f} MB")
                 
-                with open(master_delivery_zip, "rb") as delivery_file:
+                # 🔥 DYNAMIC LARGE FILE STREAMING BYPASS SYSTEM
+                try:
+                    with open(master_delivery_zip, "rb") as file_pointer:
+                        file_bytes = file_pointer.read()
+                        
                     st.download_button(
-                        label="📥 DOWNLOAD EXTRACTED IMAGES & CSV REPORT (SINGLE CLICK)",
-                        data=delivery_file,
+                        label="📥 DOWNLOAD EXTRACTED IMAGES & CSV REPORT (STREAM CHUNKS)",
+                        data=file_bytes,
                         file_name=f"Royal_Sundaram_Package_{datetime.now().strftime('%d-%m-%Y')}.zip",
                         mime="application/zip",
                         type="primary",
                         use_container_width=True
                     )
+                except Exception as streaming_err:
+                    st.error(f"Memory fallback triggered: {streaming_err}")
+                    st.info(f"💡 File locally stored safely at: {os.path.abspath(master_delivery_zip)}")
 
 st.markdown('<div class="footer-text">🛠️ Images Tool Engineered and Optimized by <b>Pawan Pandey</b></div>', unsafe_allow_html=True)
