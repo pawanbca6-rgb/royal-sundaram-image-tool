@@ -84,6 +84,7 @@ def extract_claim_from_text(text):
     match = re.search(r'([A-Z]{2}\d{8})', str(text))
     return match.group(1) if match else None
 
+# --- SMART ADAPTIVE EXTRACTION ENGINE ---
 def extract_and_clean_pdf(pdf_path, output_folder, pdf_base_name):
     try:
         if os.path.getsize(pdf_path) == 0:
@@ -93,27 +94,53 @@ def extract_and_clean_pdf(pdf_path, output_folder, pdf_base_name):
         doc = fitz.open(pdf_path)
         img_count = 0
         
+        # High resolution matrix for page layout rendering (300 DPI equivalent)
+        zoom_matrix = fitz.Matrix(4.16, 4.16)
+        
         for page_index in range(len(doc)):
             page = doc[page_index]
+            images = page.get_images(full=True)
             
-            # 🎯 MERGE & RENDER LOGIC:
-            # Alag-alag tukdon ko extract karne ke bajay hum poore page ko high resolution (2x zoom) par render karenge.
-            # Isse saare layers, choti-badi images aur timestamps aapas mein merge hokar ek full image ban jayenge.
-            matrix = fitz.Matrix(2.0, 2.0)
-            pix = page.get_pixmap(matrix=matrix, alpha=False)
-            
-            # Generate unique short hash based on pixel data bytes to avoid overlaps
-            img_hash = hashlib.md5(pix.samples).hexdigest()[:6]
-            image_name = f"{pdf_base_name}_page{page_index+1}_{img_hash}.jpg"
-            image_path = os.path.join(output_folder, image_name)
-            
-            if os.path.exists(image_path):
-                continue
+            # CASE 1: Split Images Detected (Page contains multiple fragmented image bands)
+            if len(images) > 1:
+                # Render page layout context into a single unified image stream
+                pix = page.get_pixmap(matrix=zoom_matrix, alpha=False)
+                image_bytes = pix.tobytes("jpeg")
+                image_ext = "jpeg"
                 
-            # Save the fully merged rendered page as JPEG
-            pix.save(image_path)
-            img_count += 1
-            
+                img_hash = hashlib.md5(image_bytes).hexdigest()[:6]
+                image_name = f"{pdf_base_name}_p{page_index+1}_{img_hash}.{image_ext}"
+                image_path = os.path.join(output_folder, image_name)
+                
+                if os.path.exists(image_path):
+                    image_name = f"{pdf_base_name}_p{page_index+1}_dup_{img_count}.{image_ext}"
+                    image_path = os.path.join(output_folder, image_name)
+                    
+                with open(image_path, "wb") as f:
+                    f.write(image_bytes)
+                img_count += 1
+                
+            # CASE 2: Clean/Standard Images (Page contains a single grid layout or image block)
+            elif len(images) == 1:
+                # Direct extraction method preserves original encoding without alteration
+                img = images[0]
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                image_bytes = base_image["image"]
+                image_ext = base_image["ext"]
+                
+                img_hash = hashlib.md5(image_bytes).hexdigest()[:6]
+                image_name = f"{pdf_base_name}_p{page_index+1}_i1_{img_hash}.{image_ext}"
+                image_path = os.path.join(output_folder, image_name)
+                
+                if os.path.exists(image_path):
+                    image_name = f"{pdf_base_name}_p{page_index+1}_i1_dup_{img_count}.{image_ext}"
+                    image_path = os.path.join(output_folder, image_name)
+                    
+                with open(image_path, "wb") as f:
+                    f.write(image_bytes)
+                img_count += 1
+                
         doc.close()
         if os.path.exists(pdf_path): os.remove(pdf_path)
         return img_count
