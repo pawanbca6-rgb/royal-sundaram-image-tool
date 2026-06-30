@@ -89,43 +89,31 @@ def extract_and_clean_pdf(pdf_path, output_folder, pdf_base_name):
         if os.path.getsize(pdf_path) == 0:
             if os.path.exists(pdf_path): os.remove(pdf_path)
             return 0
+        
         doc = fitz.open(pdf_path)
         img_count = 0
+        
         for page_index in range(len(doc)):
             page = doc[page_index]
-            images = page.get_images(full=True)
-            total_images_on_page = len(images)
             
-            for img_index, img in enumerate(images):
-                # 🎯 INTELLIGENT LAYER ROUTING FILTER:
-                # Agar ek page par multi-images (tukde ya transparent layout layers) hain,
-                # toh hum sirf PEHLI image (index 0) ko accept karenge taaki extra background overlays block ho sakein.
-                if total_images_on_page > 1 and img_index > 0:
-                    continue
-                    
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                image_ext = base_image["ext"]
+            # 🎯 MERGE & RENDER LOGIC:
+            # Alag-alag tukdon ko extract karne ke bajay hum poore page ko high resolution (2x zoom) par render karenge.
+            # Isse saare layers, choti-badi images aur timestamps aapas mein merge hokar ek full image ban jayenge.
+            matrix = fitz.Matrix(2.0, 2.0)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            
+            # Generate unique short hash based on pixel data bytes to avoid overlaps
+            img_hash = hashlib.md5(pix.samples).hexdigest()[:6]
+            image_name = f"{pdf_base_name}_page{page_index+1}_{img_hash}.jpg"
+            image_path = os.path.join(output_folder, image_name)
+            
+            if os.path.exists(image_path):
+                continue
                 
-                # Get image dimensions to safeguard edge restrictions if needed
-                width = base_image.get("width", 0)
-                height = base_image.get("height", 0)
-                
-                # Filter out extremely small residual line artifacts or stamps if present
-                if total_images_on_page > 1 and (width < 150 or height < 150):
-                    continue
-                    
-                img_hash = hashlib.md5(image_bytes).hexdigest()[:6]
-                image_name = f"{pdf_base_name}_p{page_index+1}_{img_hash}.{image_ext}"
-                image_path = os.path.join(output_folder, image_name)
-                
-                if os.path.exists(image_path):
-                    continue
-                    
-                with open(image_path, "wb") as f:
-                    f.write(image_bytes)
-                img_count += 1
+            # Save the fully merged rendered page as JPEG
+            pix.save(image_path)
+            img_count += 1
+            
         doc.close()
         if os.path.exists(pdf_path): os.remove(pdf_path)
         return img_count
