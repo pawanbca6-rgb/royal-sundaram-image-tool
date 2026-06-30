@@ -285,12 +285,10 @@ if uploaded_file is not None:
                 
             # --- CONSOLIDATED SINGLE DOWNLOAD ARCHIVE BUILDER ---
             if report_data:
-                # 1. Build and dump CSV structure inside file tracker
                 report_df = pd.DataFrame(report_data)
                 report_csv_path = os.path.join(CURRENT_BATCH_DIR, "Execution_Report.csv")
                 report_df.to_csv(report_csv_path, index=False)
                 
-                # 2. Bundle everything (Images + CSV report) into one dynamic ZIP file
                 master_delivery_zip = "Master_Extracted_Package.zip"
                 with zipfile.ZipFile(master_delivery_zip, 'w', zipfile.ZIP_DEFLATED) as master_zip:
                     for root, dirs, files in os.walk(CURRENT_BATCH_DIR):
@@ -302,7 +300,6 @@ if uploaded_file is not None:
                 st.balloons()
                 st.success("🎉 Extraction processing batch verified. Everything is compiled neatly inside one master download archive:")
                 
-                # Big Action One-Click Download Button
                 with open(master_delivery_zip, "rb") as delivery_file:
                     st.download_button(
                         label="📥 DOWNLOAD EXTRACTED IMAGES & CSV REPORT (SINGLE CLICK)",
