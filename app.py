@@ -78,31 +78,52 @@ def extract_claim_from_text(text):
     return match.group(1) if match else None
 
 def extract_and_clean_pdf(pdf_path, output_folder, pdf_base_name):
+    """PDF content detect karke automatic dynamic splitting ya dynamic rendering apply karta hai"""
     try:
         if os.path.getsize(pdf_path) == 0:
             if os.path.exists(pdf_path): os.remove(pdf_path)
             return 0
         
         doc = fitz.open(pdf_path)
+        total_pages = len(doc)
         img_count = 0
         
-        for page_index in range(len(doc)):
-            page = doc[page_index]
-            
-            # Optimized Resolution: Matrix(1.5, 1.5) RAM memory consumption 50% kam karega aur text readability perfect rakhega
-            matrix = fitz.Matrix(1.5, 1.5)
-            pix = page.get_pixmap(matrix=matrix, alpha=False)
-            
-            img_hash = hashlib.md5(pix.samples).hexdigest()[:6]
-            image_name = f"{pdf_base_name}_page{page_index+1}_{img_hash}.jpg"
-            image_path = os.path.join(output_folder, image_name)
-            
-            if os.path.exists(image_path):
-                continue
+        # 🎯 LOCAL SMART DECISION MATRIX CRITERIA INTEGRATED:
+        # Agar PDF me 15 se zyada pages hain, toh high-res page rendering apply hogi pixel artifacts compile karne ke liye.
+        if total_pages > 15:
+            for page_index in range(total_pages):
+                page = doc[page_index]
+                matrix = fitz.Matrix(1.5, 1.5)  # Perfect balance for resolution & low memory
+                pix = page.get_pixmap(matrix=matrix, alpha=False)
                 
-            pix.save(image_path)
-            img_count += 1
-            
+                img_hash = hashlib.md5(pix.samples).hexdigest()[:6]
+                image_name = f"{pdf_base_name}_merged_page{page_index+1}_{img_hash}.jpg"
+                image_path = os.path.join(output_folder, image_name)
+                
+                if not os.path.exists(image_path):
+                    pix.save(image_path)
+                    img_count += 1
+        else:
+            # Normal Cases: Direct embedded images extract honge
+            for page_index in range(total_pages):
+                page = doc[page_index]
+                images = page.get_images(full=True)
+                
+                for img_index, img in enumerate(images):
+                    xref = img[0]
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]
+                    
+                    img_hash = hashlib.md5(image_bytes).hexdigest()[:6]
+                    image_name = f"{pdf_base_name}_p{page_index+1}_img{img_index+1}_{img_hash}.{image_ext}"
+                    image_path = os.path.join(output_folder, image_name)
+                    
+                    if not os.path.exists(image_path):
+                        with open(image_path, "wb") as f:
+                            f.write(image_bytes)
+                        img_count += 1
+                        
         doc.close()
         if os.path.exists(pdf_path): os.remove(pdf_path)
         return img_count
@@ -139,7 +160,7 @@ if uploaded_file is not None:
                 shutil.rmtree(CURRENT_BATCH_DIR)
             os.makedirs(CURRENT_BATCH_DIR, exist_ok=True)
             
-            # Strict Lightweight Headless Configuration for low RAM cloud limits
+            # Strict Lightweight Headless Configuration
             chrome_options = webdriver.ChromeOptions()
             chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--no-sandbox")
@@ -147,12 +168,17 @@ if uploaded_file is not None:
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--window-size=1280,720")
             chrome_options.add_argument("--remote-allow-origins=*")
-            chrome_options.binary_location = "/usr/bin/chromium"
+            
+            # Local deployment compatibility fallback path check
+            if os.path.exists("/usr/bin/chromium"):
+                chrome_options.binary_location = "/usr/bin/chromium"
             
             try:
-                # Direct pointer to fixed docker path to bypass webdriver_manager freeze bugs
-                chrome_service = Service("/usr/bin/chromedriver")
-                driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
+                if os.path.exists("/usr/bin/chromedriver"):
+                    chrome_service = Service("/usr/bin/chromedriver")
+                    driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
+                else:
+                    driver = webdriver.Chrome(options=chrome_options)
             except Exception as driver_err:
                 st.error(f"Failed to load standard web driver hooks: {driver_err}")
                 st.stop()
@@ -218,6 +244,8 @@ if uploaded_file is not None:
                                 else:
                                     row_other_count += 1
 
+                            # Loop updated to iterate over all options found in dropdown
+                            for doc_name in options:
                                 detected_claim = extract_claim_from_text(doc_name) or discovered_claim_number
                                 doc_name_lower = doc_name.lower()
                                 temp_file_name = f"{reg_no}_{doc_name}"
@@ -244,6 +272,8 @@ if uploaded_file is not None:
                                                 else:
                                                     pdf_name_without_ext = os.path.splitext(doc_name)[0]
                                                     pdf_base_identifier = f"{reg_no}_{pdf_name_without_ext}"
+                                                    
+                                                    # Fix: Local optimized engine call integration here
                                                     imgs_saved = extract_and_clean_pdf(file_save_path, reg_folder, pdf_base_identifier)
                                                     
                                                     if imgs_saved > 0:
@@ -261,7 +291,7 @@ if uploaded_file is not None:
                                 time.sleep(1)
                         except Exception:
                             row_failed_files = row_total_files
-                        
+                            
                         report_data.append({
                             "Registration_No": reg_no, "Link": portal_url, "Timestamp": row_time_stamp,
                             "Total_Source_Files": row_total_files, "Total_PDF_Count": row_pdf_count,
