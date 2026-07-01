@@ -55,7 +55,7 @@ with st.sidebar:
         use_container_width=True
     )
     st.write("---")
-    st.caption("Engine State: Optimized Low-Memory Mode (<512MB)")
+    st.caption("Upload 0nly 1 Vehicle Link in a single time due to Low-Memory Mode (<512MB)")
 
 st.markdown("## 🚗 Royal Sundaram Image Tool")
 st.markdown("##### This Tool Work Only For Royal Sundaram Image Links")
@@ -183,7 +183,7 @@ if uploaded_file is not None:
             report_data = []
             
             st.write("---")
-            st.markdown("### ⚙️ Engine Execution Trace Logs")
+            st.markdown("### ⚙️ Images Converting...>>> Logs")
             engine_progressbar = st.progress(0)
             
             with st.status("Spinning virtual browser pipelines...", expanded=True) as operation_context:
@@ -305,7 +305,7 @@ if uploaded_file is not None:
                     engine_progressbar.progress((idx + 1) / total_vehicles_count)
                     
                 driver.quit()
-                operation_context.update(label="🚀 Data Compiling Finished!", state="complete", expanded=False)
+                operation_context.update(label="🚀 Image Converting Successfully!", state="complete", expanded=False)
                 
             if report_data:
                 report_df = pd.DataFrame(report_data)
@@ -330,7 +330,7 @@ if uploaded_file is not None:
                 # Is block me variable content build up ko directly download handler me pipeline kiya h
                 with open(master_delivery_zip, "rb") as file_pointer:
                     st.download_button(
-                        label="📥 DOWNLOAD EXTRACTED IMAGES & CSV REPORT (ZERO-COPY)",
+                        label="📥 DOWNLOAD IMAGES & REPORT",
                         data=file_pointer, # Directly pass open file handler instead of file_bytes string variable
                         file_name=f"Royal_Sundaram_Package_{datetime.now().strftime('%d-%m-%Y')}.zip",
                         mime="application/zip",
@@ -342,4 +342,4 @@ if uploaded_file is not None:
                 del report_data
                 gc.collect()
 
-st.markdown('<div class="footer-text">🛠️ Images Tool Engineered and Optimized by <b>Pawan Pandey</b></div>', unsafe_allow_html=True)
+st.markdown('<div class="footer-text">🛠️ This Images Tool Created by <b>Pawan Pandey</b></div>', unsafe_allow_html=True)
